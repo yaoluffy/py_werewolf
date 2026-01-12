@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import messagebox, font as tkfont
 
 WORDS_FILE = Path(__file__).with_name("words.txt")
+WORDS_USED_FILE = Path(__file__).with_name("words_used.txt")
 
 
 class WerewolfGameApp:
@@ -138,8 +139,13 @@ class WerewolfGameApp:
     def start_round(self) -> None:
         if not self.player_count:
             return
+        if not self.words:
+            messagebox.showinfo("提示", "词库已使用完，请更新 words.txt 或从 words_used.txt 移回词条。")
+            return
         self.current_player_index = 0
+        self.player_phase = "intro"
         selected_pair = random.choice(self.words)
+        self.mark_word_used(selected_pair)
         majority_word, minority_word = selected_pair
         if random.choice((True, False)):
             majority_word, minority_word = minority_word, majority_word
@@ -147,8 +153,28 @@ class WerewolfGameApp:
         self.undercover_index = random.randrange(self.player_count)
         self.player_words = [majority_word for _ in range(self.player_count)]
         self.player_words[self.undercover_index] = minority_word
-        self.player_phase = "intro"
         self.show_player_screen()
+
+    def mark_word_used(self, pair: tuple[str, str]) -> None:
+        sanitized_line = ",".join(pair)
+        try:
+            raw_lines = WORDS_FILE.read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:
+            raw_lines = []
+        new_lines: list[str] = []
+        removed = False
+        for raw in raw_lines:
+            if not removed and raw.strip() == sanitized_line:
+                removed = True
+                continue
+            new_lines.append(raw)
+        WORDS_FILE.write_text("\n".join(new_lines) + ("\n" if new_lines else ""), encoding="utf-8")
+        with WORDS_USED_FILE.open("a", encoding="utf-8") as used_file:
+            used_file.write(sanitized_line + "\n")
+        try:
+            self.words.remove(pair)
+        except ValueError:
+            pass
 
     def show_player_screen(self) -> None:
         if self.player_count is None:
